@@ -6,7 +6,7 @@ import dayjs from "dayjs";
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import { Toaster, toast } from 'sonner'
-import BookmarkItem from '@/components/bookmarkItem';
+// import BookmarkItem from '@/components/bookmarkItem';
 import { isMobile } from "react-device-detect";
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { IconGlobe, IconLoading, IconPlus, IconText, IconWorld } from './Icons';
