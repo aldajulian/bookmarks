@@ -29,7 +29,7 @@ const getMetaData = async (req, res) => {
     }
 
     // Return the metadata
-    res.status(200).json({ title: title, faviconUrl: faviconUrl, url: originUrl });
+    res.status(200).json({ title: title, faviconUrl: faviconUrl, originUrl: originUrl });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
