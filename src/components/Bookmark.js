@@ -6,20 +6,24 @@ import dayjs from "dayjs";
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import { Toaster, toast } from 'sonner'
+import { Drawer } from 'vaul';
 // import BookmarkItem from '@/components/bookmarkItem';
-import { isMobile } from "react-device-detect";
+import { isMobile } from 'react-device-detect';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { IconGlobe, IconLoading, IconPlus, IconText, IconWorld } from './Icons';
+import { fetchWithTimeout } from '@/lib/fetcher';
 
 function Bookmark() {
   const [newMark, setNewMark] = useState('');
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
   const [metadata, setMetadata] = useState(null);
   const [bookmarkID, setBookmarkID] = useState('')
   const [bookmarkType, setBookmarkType] = useState('')
   const [bookmarkTypeValue, setBookmarkTypeValue] = useState('')
   const [bookmarks, setBookmarks] = useState([])
   const [filteredBookmarks, setFilteredBookmarks] = useState([])
+  const [snap, setSnap] = useState("148px")
   const inputRef = useRef();
   const date = dayjs().format('DD MMM YYYY');
   const linkRefs = useRef([]);
@@ -32,7 +36,7 @@ function Bookmark() {
     const newValue = newMark
 
     try {
-      const response = await fetch(`/api/get_meta_data?url=${encodeURIComponent(newValue)}`);
+      const response = await fetchWithTimeout(`/api/get_meta_data?url=${encodeURIComponent(newValue)}`);
       if (!response.ok) {
         throw new Error('Failed to fetch metadata');
       }
@@ -67,6 +71,10 @@ function Bookmark() {
           return item
         }
       })
+
+      if (updatedBookmarks.length) {
+        setBookmarks(updatedBookmarks);
+      }
     } finally {
       // setBookmarkID('')
       mainInputFocus()
@@ -76,6 +84,7 @@ function Bookmark() {
   const mainInputFocus = () => {
     setTimeout(function(){
       inputRef.current.focus();
+      setLoading(false)
     }, 20)
   }
 
@@ -111,9 +120,16 @@ function Bookmark() {
     }
   };
 
+  const handleMainInputBlur = () => {
+    if (isMobile) {
+      console.log('huaaa', isMobile)
+      handleAddBookmark()
+    }
+  }
+
   const handleAddBookmark = () => {
-    setLoading(true)
     if (newMark.length) {
+      setLoading(true)
       let new_bookmark_id = uuidv4()
       let temporary_title = bookmarkType !== 'web' ? newMark : ''
 
@@ -143,8 +159,12 @@ function Bookmark() {
     return !!urlPattern.test(urlString);
   }
 
-  function isValidColor(str) {
-    return (str.includes("#") && (str.length === 4 || str.length === 7));
+  const isValidColor = (colorString) => {
+    const s = new Option().style;
+    const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$|^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$|^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/;
+    s.color = colorString;
+  
+    return s.color == colorString ? s.color == colorString : colorRegex.test(colorString);
   }
 
   const defineBookmark = (e) => {
@@ -154,11 +174,8 @@ function Bookmark() {
     
     if (isValidUrl(rawBookmark)) {
       setBookmarkType('web')
-      console.log(rawBookmark, isValidUrl(rawBookmark))
       return
     }
-
-    console.log(rawBookmark)
 
     if (isValidColor(rawBookmark)) {
       setBookmarkType('color')
@@ -234,36 +251,83 @@ function Bookmark() {
           colors={["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"]}
         />
       </div>
-      <div className='bookmark-bar'>
-        <div className='bookmark-icon'>
-          { loading &&
-            <div className='loader'>
-              <IconLoading />
-            </div>
-          }
-          { !loading && (bookmarkType === '' || bookmarkType === 'text') && (
-            <IconPlus />
-          )}
+      <div className={`bookmark-bar ${open && 'hidden-bar'}`}>
+        <Drawer.Root
+          onOpenChange={setOpen}
+          snapPoints={["400px", 1]}
+          activeSnapPoint={snap}
+          setActiveSnapPoint={setSnap}
+        >
+          <Drawer.Trigger asChild>
+            <motion.div initial={{translateX: 0}} exit={{translateX: -50}} className='switch-collection'>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 15L12 20L17 15M7 9L12 4L17 9" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </motion.div>
+          </Drawer.Trigger>
 
-          { !loading && bookmarkType === 'color' && (
-            <div className='icon-color' style={{ backgroundColor: newMark }} />
-          )}
+          <Drawer.Portal>
+            <Drawer.Content className='dialog'>
+              <p>Switch Collection</p>
+            </Drawer.Content>
+            <Drawer.Overlay className='dialog-overlay' />
+          </Drawer.Portal>
+        </Drawer.Root>
+        <div className='bookmark-input-area'>
+          <div className='bookmark-icon'>
+            { loading &&
+              <div className='loader'>
+                <IconLoading />
+              </div>
+            }
+            { !loading && (bookmarkType === '' || bookmarkType === 'text') && (
+              <IconPlus />
+            )}
 
-          { !loading && bookmarkType === 'web' && (
-            <IconGlobe />
-          )}
+            { !loading && bookmarkType === 'color' && (
+              <div className='icon-color' style={{ backgroundColor: newMark }} />
+            )}
+
+            { !loading && bookmarkType === 'web' && (
+              <IconGlobe />
+            )}
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Enter URL"
+            value={newMark}
+            onChange={(e) => defineBookmark(e)}
+            className='main-input'
+            onKeyDown={handleEnterKeyPress}
+            onBlur={handleMainInputBlur}
+            disabled={loading}
+          />
         </div>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Enter URL"
-          value={newMark}
-          onChange={(e) => defineBookmark(e)}
-          className='main-input'
-          onKeyDown={handleEnterKeyPress}
-          // onBlur={handleAddBookmark}
-          disabled={loading}
-        />
+        <Drawer.Root
+          onOpenChange={setOpen}
+          snapPoints={["400px", 1]}
+          activeSnapPoint={snap}
+          setActiveSnapPoint={setSnap}
+        >
+          <Drawer.Trigger asChild>
+            <motion.div initial={{translateX: 0}} exit={{translateX: 50}} className='show-setting'>
+              <Avatar
+                size={32}
+                name="Maria Mitchell"
+                variant="marble"
+                colors={["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"]}
+              />
+            </motion.div>
+          </Drawer.Trigger>
+
+          <Drawer.Portal>
+            <Drawer.Content className='dialog'>
+              <p>Settings</p>
+            </Drawer.Content>
+            <Drawer.Overlay className='dialog-overlay' />
+          </Drawer.Portal>
+        </Drawer.Root>
       </div>
 
       {bookmarks.length >= 1 && (
