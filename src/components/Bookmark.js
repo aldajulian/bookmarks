@@ -11,7 +11,7 @@ import { Drawer } from 'vaul';
 import { isMobile } from 'react-device-detect';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import { IconGlobe, IconLoading, IconPlus, IconText, IconWorld } from './Icons';
-import { fetchWithTimeout } from '@/lib/fetcher';
+import { fetchWithTimeout, formatedDate } from '@/lib/fetcher';
 
 function Bookmark() {
   const [newMark, setNewMark] = useState('');
@@ -25,15 +25,15 @@ function Bookmark() {
   const [filteredBookmarks, setFilteredBookmarks] = useState([])
   const [snap, setSnap] = useState("148px")
   const inputRef = useRef();
-  const date = dayjs().format('DD MMM YYYY');
+  const date = dayjs();
   const linkRefs = useRef([]);
 
   const fetchMetadata = async () => {
-    setLoading(false)
     // console.log(bookmarkID, bookmarkType, newMark)
     if (!newMark) return;
     if (bookmarkType !== 'web') return;
     const newValue = newMark
+    handleAdded()
 
     try {
       const response = await fetchWithTimeout(`/api/get_meta_data?url=${encodeURIComponent(newValue)}`);
@@ -76,8 +76,7 @@ function Bookmark() {
         setBookmarks(updatedBookmarks);
       }
     } finally {
-      // setBookmarkID('')
-      mainInputFocus()
+      // handleAdded()
     }
   };
 
@@ -93,9 +92,6 @@ function Bookmark() {
       handleAddBookmark()
       return
     }
-    
-    // const filtering = bookmarks.filter((mark) => mark.title.includes(url))
-    // console.log(filtering)
   };
 
   const handleArrowNavigation = (e) => {
@@ -122,7 +118,6 @@ function Bookmark() {
 
   const handleMainInputBlur = () => {
     if (isMobile) {
-      console.log('huaaa', isMobile)
       handleAddBookmark()
     }
   }
@@ -142,11 +137,22 @@ function Bookmark() {
           originUrl: '',
         },
         bookmark_type: bookmarkType,
-        created_at: date
+        created_at: new Date()
       }
       setBookmarkID(new_bookmark_id)
       setBookmarks(oldArray => [bookmark_item, ...oldArray]);
+
+      if (bookmarkType !== 'web') {
+        handleAdded()
+      }
     }
+  }
+
+  const handleAdded = () => {
+    setBookmarkType('')
+    mainInputFocus()
+    setLoading(false)
+    setNewMark('')
   }
 
   const isValidUrl = (urlString) => {
@@ -164,20 +170,24 @@ function Bookmark() {
     const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$|^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$|^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/;
     s.color = colorString;
   
-    return s.color == colorString ? s.color == colorString : colorRegex.test(colorString);
+    return (s.color == colorString) ? (s.color == colorString) : colorRegex.test(colorString);
   }
 
   const defineBookmark = (e) => {
     const rawBookmark = e.target.value
-    
+    const filteredResults = bookmarks.filter(item =>
+      item.name.toLowerCase().includes(rawBookmark.toLowerCase())
+    );
+
     setNewMark(rawBookmark)
+    setFilteredBookmarks(filteredResults)
     
-    if (isValidUrl(rawBookmark)) {
+    if (rawBookmark !== '' && isValidUrl(rawBookmark)) {
       setBookmarkType('web')
       return
     }
 
-    if (isValidColor(rawBookmark)) {
+    if (rawBookmark !== '' && isValidColor(rawBookmark)) {
       setBookmarkType('color')
       setBookmarkTypeValue(rawBookmark)
       return
@@ -190,15 +200,8 @@ function Bookmark() {
 
     if(rawBookmark === '') {
       setBookmarkType('')
-      setFilteredBookmarks(bookmarks)
       return
     }
-
-    const filteredResults = bookmarks.filter(item =>
-      item.name.toLowerCase().includes(rawBookmark.toLowerCase())
-    );
-
-    setFilteredBookmarks(filteredResults)
   }
   
   useEffect(() => {
@@ -230,7 +233,6 @@ function Bookmark() {
 
   useEffect(() => {
     setFilteredBookmarks(bookmarks)
-    setNewMark('')
   }, [bookmarks])
 
   return (
@@ -295,12 +297,12 @@ function Bookmark() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Enter URL"
+            placeholder="Insert a link or any text"
             value={newMark}
             onChange={(e) => defineBookmark(e)}
             className='main-input'
             onKeyDown={handleEnterKeyPress}
-            onBlur={handleMainInputBlur}
+            // onBlur={handleMainInputBlur}
             disabled={loading}
           />
         </div>
@@ -328,6 +330,8 @@ function Bookmark() {
             <Drawer.Overlay className='dialog-overlay' />
           </Drawer.Portal>
         </Drawer.Root>
+
+        <div className='blur' />
       </div>
 
       {bookmarks.length >= 1 && (
@@ -341,10 +345,13 @@ function Bookmark() {
         {filteredBookmarks.length !== 0 && filteredBookmarks.map((item, index) => (
           <a
             key={item.id}
-            href="#"
+            href={item.attributes ? item.attributes.originUrl : '#'}
+            target={item.attributes.originUrl && '_blank'}
             tabIndex={0}
             className='item-list'
             ref={linkRefs.current[index]}
+            title={item.attributes.title}
+            rel="noreferrer"
           >
             <ContextMenu.Root>
             <ContextMenu.Trigger className="ContextMenuTrigger">
@@ -375,7 +382,7 @@ function Bookmark() {
               { item.attributes.originUrl !== '' &&
                 <small>{item.attributes.originUrl.replace(/^https:\/\//, '')}</small>
               }
-              <span className='date'>{dayjs(item.created_at).format('DD MMM YYYY')}</span>
+              <span className='date'>{formatedDate(item.created_at)}</span>
               </ContextMenu.Trigger>
               <ContextMenu.Portal>
                 <ContextMenu.Content className="ContextMenuContent" sideOffset={5} align="end">
